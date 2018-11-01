@@ -331,7 +331,7 @@ class map_if(x12_node):
                     if len(x12path.loop_list) == 1:
                         return child
                     else:
-                        del x12path.loop_list[0]
+                        x12path.loop_list = x12path.loop_list[1:]
                         return child.getnodebypath2(x12path.format())
         raise EngineError(
             'getnodebypath2 failed. Path "%s" not found' % path_str)
@@ -545,7 +545,7 @@ class loop_if(x12_node):
                         if len(x12path.loop_list) == 1 and x12path.seg_id is None:
                             return child
                         else:
-                            del x12path.loop_list[0]
+                            x12path.loop_list = x12path.loop_list[1:]
                             return child.getnodebypath2(x12path.format())
                 elif child.is_segment() and len(x12path.loop_list) == 0 and x12path.seg_id is not None:
                     if x12path.id_val is None:

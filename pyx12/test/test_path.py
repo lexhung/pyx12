@@ -67,7 +67,7 @@ class RefDes(unittest.TestCase):
                              (spath, rd.subele_idx, subeleidx))
             self.assertEqual(rd.format(), spath,
                              '%s: %s != %s' % (spath, rd.format(), spath))
-            self.assertEqual(rd.loop_list, [],
+            self.assertEqual(rd.loop_list, tuple(),
                              '%s: Loop list is not empty' % (spath))
 
 
@@ -99,8 +99,8 @@ class RelativePath(unittest.TestCase):
                              (spath, rd.subele_idx, subeleidx))
             self.assertEqual(rd.format(), spath,
                              '%s: %s != %s' % (spath, rd.format(), spath))
-            self.assertEqual(rd.loop_list, plist,
-                             '%s: %s != %s' % (spath, rd.loop_list, plist))
+            self.assertEqual(rd.loop_list, tuple(plist),
+                             '%s: %s != %s' % (spath, rd.loop_list, tuple(plist)))
 
     def test_bad_rel_paths(self):
         bad_paths = [
@@ -126,7 +126,7 @@ class RelativePath(unittest.TestCase):
         for spath in paths:
             plist = spath.split('/')
             rd = pyx12.path.X12Path(spath)
-            self.assertEqual(rd.loop_list, plist,
+            self.assertEqual(rd.loop_list, tuple(plist),
                              '%s: %s != %s' % (spath, rd.loop_list, plist))
 
 
@@ -158,7 +158,7 @@ class AbsolutePath(unittest.TestCase):
                              (spath, rd.subele_idx, subeleidx))
             self.assertEqual(rd.format(), spath,
                              '%s: %s != %s' % (spath, rd.format(), spath))
-            self.assertEqual(rd.loop_list, plist,
+            self.assertEqual(rd.loop_list, tuple(plist),
                              '%s: %s != %s' % (spath, rd.loop_list, plist))
 
     def test_bad_paths(self):
@@ -185,7 +185,7 @@ class AbsolutePath(unittest.TestCase):
         for spath in paths:
             plist = spath.split('/')[1:]
             rd = pyx12.path.X12Path(spath)
-            self.assertEqual(rd.loop_list, plist,
+            self.assertEqual(rd.loop_list, tuple(plist),
                              '%s: %s != %s' % (spath, rd.loop_list, plist))
 
 
@@ -200,7 +200,7 @@ class Equality(unittest.TestCase):
     def test_equal2(self):
         p1 = pyx12.path.X12Path('/ISA_LOOP/GS_LOOP/ST_LOOP/DETAIL/2000A')
         p2 = pyx12.path.X12Path('/ISA_LOOP/GS_LOOP/ST_LOOP/DETAIL/')
-        p2.loop_list.append('2000A')
+        p2.append('2000A')
         self.assertEqual(p1, p2)
         self.assertEqual(p1.format(), p2.format())
         self.assertEqual(p1.__hash__(), p2.__hash__())
@@ -220,11 +220,11 @@ class Equality(unittest.TestCase):
         self.assertEqual(p1, p2)
         self.assertEqual(p1.format(), p2.format())
         self.assertEqual(p1.__hash__(), p2.__hash__())
-        
+
     def test_equal5(self):
         x12path = pyx12.path.X12Path('/1000A/SD01')
         self.assertEqual(len(x12path.loop_list), 1)
-        del x12path.loop_list[0]
+        x12path.pop_loop()
         self.assertEqual(len(x12path.loop_list), 0)
         self.assertEqual(x12path.format(), '/SD01')
         self.assertEqual(x12path.seg_id, 'SD')
@@ -234,7 +234,7 @@ class Equality(unittest.TestCase):
     def test_equal6(self):
         x12path = pyx12.path.X12Path('/1000A/SD01')
         self.assertEqual(len(x12path.loop_list), 1)
-        del x12path.loop_list[0]
+        x12path.pop_loop()
         self.assertEqual(len(x12path.loop_list), 0)
         self.assertEqual(x12path.format(), '/SD01')
         self.assertEqual(x12path.seg_id, 'SD')

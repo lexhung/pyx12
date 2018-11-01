@@ -1,5 +1,5 @@
 ######################################################################
-# Copyright (c) 
+# Copyright (c)
 #   John Holland <john@zoner.org>
 # All rights reserved.
 #
@@ -27,8 +27,15 @@ SEG[434]02-1
 """
 
 import re
-
+import logging as logger
 from pyx12.errors import X12PathError
+
+re_seg_id       = r'(?P<seg_id>[A-Z][A-Z0-9]{1,2})?'
+re_id_val       = r'(\[(?P<id_val>[A-Z0-9]+)\])?'
+re_ele_idx      = r'(?P<ele_idx>[0-9]{2})?'
+re_subele_idx   = r'(-(?P<subele_idx>[0-9]+))?'
+re_str          = r'^%s%s%s%s$' % (re_seg_id, re_id_val, re_ele_idx, re_subele_idx)
+RX_PATH         = re.compile(re_str, re.S)
 
 
 class X12Path(object):
@@ -36,12 +43,59 @@ class X12Path(object):
     Interface to an x12 path
     """
 
-    re_seg_id = '(?P<seg_id>[A-Z][A-Z0-9]{1,2})?'
-    re_id_val = '(\[(?P<id_val>[A-Z0-9]+)\])?'
-    re_ele_idx = '(?P<ele_idx>[0-9]{2})?'
-    re_subele_idx = '(-(?P<subele_idx>[0-9]+))?'
-    re_str = '^%s%s%s%s$' % (re_seg_id, re_id_val, re_ele_idx, re_subele_idx)
-    rec_path = re.compile(re_str, re.S)
+    @property
+    def loop_list(self):
+        return self._loop_list
+
+    @loop_list.setter
+    def loop_list(self, value):
+        self._dirty = True
+        self._loop_list = value
+
+    @property
+    def seg_id(self):
+        return self._seg_id
+
+    @property
+    def id_val(self):
+        return self._id_val
+
+    @property
+    def ele_idx(self):
+        return self._ele_idx
+
+    @property
+    def subele_idx(self):
+        return self._subele_idx
+
+    @property
+    def relative(self):
+        return self._relative
+
+    @seg_id.setter
+    def seg_id(self, value):
+        self._dirty = True
+        self._seg_id = value
+
+    @id_val.setter
+    def id_val(self, value):
+        self._dirty = True
+        self._id_val = value
+
+    @ele_idx.setter
+    def ele_idx(self, value):
+        self._dirty = True
+        self._ele_idx = value
+
+    @subele_idx.setter
+    def subele_idx(self, value):
+        self._dirty = True
+        self._subele_idx = value
+
+    @relative.setter
+    def relative(self, value):
+        self._dirty = True
+        self._relative = value
 
     def __init__(self, path_str):
         """
@@ -49,48 +103,69 @@ class X12Path(object):
         @type path_str: string
 
         """
-        #self.loop_list =
-        self.seg_id = None
-        self.id_val = None
-        self.ele_idx = None
-        self.subele_idx = None
-        self.relative = None
-        self.loop_list = []
+        self._seg_id = None
+        self._id_val = None
+        self._ele_idx = None
+        self._subele_idx = None
+        self._relative = None
+        self._path_str = path_str
+        self._dirty = False
+        self._loop_list = tuple()
+
         if path_str == '':
-            self.relative = True
+            self._relative = True
             return
+
         if path_str[0] == '/':
-            self.relative = False
-            self.loop_list = path_str[1:].split('/')
-            #self.loop_list = [x for x in path_str[1:].split('/') if x != '']
+            self._relative = False
+            self._loop_list = tuple(path_str[1:].split('/'))
         else:
-            self.relative = True
-            self.loop_list = path_str.split('/') 
-            #self.loop_list = [x for x in path_str.split('/') if x != '']
-        if len(self.loop_list) == 0:
+            self._relative = True
+            self._loop_list = tuple(path_str.split('/'))
+
+        if len(self._loop_list) == 0:
             return
-        if len(self.loop_list) > 0 and self.loop_list[-1] == '':
+
+        if len(self._loop_list) > 0 and self._loop_list[-1] == '':
             # Ended in a /, so no segment
-            del self.loop_list[-1]
+            self._path_str = path_str[:-1]
+            self._loop_list = self._loop_list[:-1]
             return
-        if len(self.loop_list) > 0:
-            seg_str = self.loop_list[-1]
-            m = X12Path.rec_path.search(seg_str)
+
+        if len(self._loop_list) > 0:
+            seg_str = self._loop_list[-1]
+            m = RX_PATH.search(seg_str)
             if m is not None:
-                self.seg_id = m.group('seg_id')
-                self.id_val = m.group('id_val')
+                self._loop_list = self._loop_list[:-1]
+
+                self._seg_str = seg_str
+                self._seg_id = m.group('seg_id')
+                self._id_val = m.group('id_val')
                 if m.group('ele_idx') is not None:
-                    self.ele_idx = int(m.group('ele_idx'))
-                if m.group('subele_idx') is not None:
-                    self.subele_idx = int(m.group('subele_idx'))
-                del self.loop_list[-1]
-                if self.seg_id is None and self.id_val is not None:
-                    raise X12PathError('Path "%s" is invalid. Must specify a segment identifier with a qualifier' % (path_str))
-                if self.seg_id is None and (self.ele_idx is not None or self.subele_idx is not None) and len(self.loop_list) > 0:
+                    self._ele_idx = int(m.group('ele_idx'))
+
+                subele_idx = m.group('subele_idx')
+                if subele_idx is not None:
+                    self._subele_idx = int(subele_idx)
+
+                if self._seg_id is None and self._id_val is not None:
+                    raise X12PathError(
+                        'Path "%s" is invalid. Must specify a segment identifier with a qualifier' % (path_str))
+                if (
+                    self._seg_id is None and
+                    (self._ele_idx is not None or self._subele_idx is not None) and
+                    len(self._loop_list) > 0
+                ):
                     raise X12PathError('Path "%s" is invalid. Must specify a segment identifier' % (path_str))
+            else:
+                self._seg_id = None
 
     def is_match(self, path_str):
         pass
+
+    def append(self, loop):
+        self._loop_list = self._loop_list + tuple(loop.split('/'))
+        self._dirty = True
 
     def empty(self):
         """
@@ -98,7 +173,7 @@ class X12Path(object):
         @return: True if contains no path data
         @rtype: boolean
         """
-        return self.relative is True and len(self.loop_list) == 0 and self.seg_id is None and self.ele_idx is None
+        return self._relative is True and len(self._loop_list) == 0 and self._seg_id is None and self._ele_idx is None
 
     def _is_child_path(self, root_path, child_path):
         """
@@ -108,20 +183,21 @@ class X12Path(object):
         @return: True if a child
         @rtype: boolean
         """
-        root = root_path.split('/')
-        child = child_path.split('/')
-        if len(root) >= len(child):
-            return False
-        for i in range(len(root)):
-            if root[i] != child[i]:
-                return False
-        return True
+        return len(child_path) > len(root_path) and child_path.find(root_path) == 0
+        # root = root_path.split('/')
+        # child = child_path.split('/')
+        # if len(root) >= len(child):
+        #     return False
+        # for i in range(len(root)):
+        #     if root[i] != child[i]:
+        #         return False
+        # return True
 
     def __eq__(self, other):
         if isinstance(other, X12Path):
-            return self.loop_list == other.loop_list and self.seg_id == other.seg_id \
-                and self.id_val == other.id_val and self.ele_idx == other.ele_idx \
-                and self.subele_idx == other.subele_idx and self.relative == other.relative
+            return self._loop_list == other.loop_list and self._seg_id == other._seg_id \
+                and self._id_val == other._id_val and self._ele_idx == other.ele_idx \
+                and self._subele_idx == other.subele_idx and self._relative == other.relative
         return NotImplemented
 
     def __ne__(self, other):
@@ -149,35 +225,55 @@ class X12Path(object):
         @return: Formatted path
         @rtype: string
         """
-        ret = ''
-        if not self.relative:
-            ret += '/'
-        ret += '/'.join(self.loop_list)
-        if self.seg_id and ret != '' and ret != '/':
-            ret += '/'
-        ret += self.format_refdes()
-        return ret
+        return self.format()
 
     def __hash__(self):
         return self.__repr__().__hash__()
 
     def format(self):
+        if self._dirty:
+            self.fm_path()
+        return self._path_str
+
+    def pop_loop(self):
+        if len(self._loop_list) > 0:
+            loop, self._loop_list = self._loop_list[0], self._loop_list[1:]
+        self._path_str = self._path_str.replace(loop + '/', '')
+        return loop
+
+    def fm_path(self):
         """
         @rtype: string
         """
-        return self.__repr__()
+        # return self.path_str
+        ret = ''
+        if not self._relative:
+            ret += '/'
+        ret += '/'.join(self._loop_list)
+        if self._seg_id and ret != '' and ret != '/':
+            ret += '/'
+        ret += self.fm_refdes()
+        self._path_str = ret
+        self._dirty = False
+        return ret
+
+    def fm_refdes(self):
+        ret = ''
+        if self._seg_id:
+            ret += self._seg_id
+            if self._id_val:
+                ret += '[%s]' % self._id_val
+        if self._ele_idx:
+            ret += '%02i' % (self._ele_idx)
+            if self._subele_idx:
+                ret += '-%i' % self._subele_idx
+        self._seg_str = ret
+        return ret
 
     def format_refdes(self):
-        ret = ''
-        if self.seg_id:
-            ret += self.seg_id
-            if self.id_val:
-                ret += '[%s]' % self.id_val
-        if self.ele_idx:
-            ret += '%02i' % (self.ele_idx)
-            if self.subele_idx:
-                ret += '-%i' % self.subele_idx
-        return ret
+        if self._dirty:
+            self.fm_path()
+        return self._seg_str
 
     def is_child_path(self, child_path):
         """
@@ -186,11 +282,14 @@ class X12Path(object):
         @return: True if a child
         @rtype: boolean
         """
-        root = self.format().split('/')
-        child = child_path.split('/')
-        if len(root) >= len(child):
-            return False
-        for i in range(len(root)):
-            if root[i] != child[i]:
-                return False
-        return True
+        root_path = self.format()
+        return len(child_path) > len(root_path) and child_path.find(root_path) == 0
+
+        # root = self.format().split('/')
+        # child = child_path.split('/')
+        # if len(root) >= len(child):
+        #     return False
+        # for i in range(len(root)):
+        #     if root[i] != child[i]:
+        #         return False
+        # return True

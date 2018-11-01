@@ -1,5 +1,5 @@
 #####################################################################
-# Copyright 
+# Copyright
 #   John Holland <john@zoner.org>
 # All rights reserved.
 #
@@ -499,8 +499,7 @@ class X12LoopDataNode(X12DataNode):
             except errors.EngineError as e:
                 raise errors.X12PathError('X12 Path is invalid or was not found: %s' % (x12_path_str))
         else:
-            next_id = xpath.loop_list[0]
-            del xpath.loop_list[0]
+            next_id = xpath.pop_loop()
             try:
                 for loop in [loop for loop in curr.children if loop.type == 'loop']:
                     if loop.id == next_id:
@@ -550,7 +549,7 @@ class X12LoopDataNode(X12DataNode):
     def seg_count(self):
         for child in [x for x in self.children if x.type == 'seg']:
             return child.seg_count
-        
+
     @property
     def cur_line_number(self):
         for child in [x for x in self.children if x.type == 'seg']:
@@ -699,7 +698,7 @@ class X12SegmentDataNode(X12DataNode):
         for loop in self.start_loops:
             yield {'node': loop, 'type': 'loop_start', 'id': loop.id}
         yield {'type': 'seg', 'id': self.id, 'segment': self.seg_data,
-               'start_loops': self.start_loops, 'end_loops': self.end_loops, 
+               'start_loops': self.start_loops, 'end_loops': self.end_loops,
                'seg_count': self.seg_count, 'cur_line_number': self.cur_line_number,}
 
     def copy(self):
